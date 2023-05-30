@@ -60,27 +60,43 @@ public class TwoFactorAuthenticationFilter implements Filter {
 		String username = credentialsMap.get("username");
 		String password = credentialsMap.get("password");
 		String role = httpRequest.getHeader("Roles");
+		Optional<String> otpCode = Optional.of(httpRequest.getHeader("otp"));
 		
 		GrantedAuthority authority = () -> role;
 		List<GrantedAuthority> grantedRoles = new ArrayList<>();
 		grantedRoles.add(authority);
 		
-		Authentication authentication = new UserCredentialsAuthentication(username, password, grantedRoles);
+		//scenario: when user is logging in for first time
+		if (otpCode.isPresent() && otpCode.get().isEmpty()) {
 
-		Authentication resultAuth = manager.authenticate(authentication);
-		
-		if(resultAuth.isAuthenticated()) {
-			SecurityContextHolder.getContext().setAuthentication(authentication);
-			
-			//Step 2: Generate Otp here 
-			Otp otp = generateOtpForUser(username);
-			httpResponse.setHeader("otp", otp.getOtp());
-			otpRepository.save(otp);
-			chain.doFilter(httpRequest, httpResponse);
-			
+			Authentication authentication = new UserCredentialsAuthentication(username, password, grantedRoles);
+
+			Authentication resultAuth = manager.authenticate(authentication);
+
+			if (resultAuth.isAuthenticated()) {
+				SecurityContextHolder.getContext().setAuthentication(authentication);
+
+				// Step 2: Generate Otp here
+				Otp otp = generateOtpForUser(username);
+				httpResponse.setHeader("otp", otp.getOtp());
+				otpRepository.save(otp);
+				chain.doFilter(httpRequest, httpResponse);
+
+			} else {
+				System.out.println("Authentication failed");
+				throw new BadCredentialsException("Authentication Failed");
+			}
 		} else {
-			System.out.println("Authentication failed");
-			throw new BadCredentialsException("Authentication Failed");
+			//scenario: user already entered credentials and has received the Otp 
+			//This is the 2nd step of authentication, to verify the Otp code received by user
+			//Step 3: Check Username & Otp
+			Authentication otpAuth = new OtpAuthentication(username, otpCode.get(), grantedRoles);
+			Authentication resultOtpAuth = manager.authenticate(otpAuth);
+			if(resultOtpAuth.isAuthenticated()) {
+			httpResponse.addHeader("Auth-status", "2 factor authentication success");
+			} else {
+				throw new BadCredentialsException("Otp is not Correct. Resend the Otp.");
+			}
 		}
 		
 	}

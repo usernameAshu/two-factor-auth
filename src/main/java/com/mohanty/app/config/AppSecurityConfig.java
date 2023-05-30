@@ -17,20 +17,23 @@ import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
 import com.mohanty.app.repository.UsersRepository;
-import com.mohanty.app.security.authProviders.CustomAuthProvider;
-import com.mohanty.app.security.filters.CustomAuthenticationFilter;
+import com.mohanty.app.security.authProviders.OtpAuthenticationProvider;
+import com.mohanty.app.security.authProviders.UserCredentialsAuthenticationProvider;
+import com.mohanty.app.security.filters.TwoFactorAuthenticationFilter;
 import com.mohanty.app.security.service.CustomUserDetailsService;
 
 
 @Configuration
 public class AppSecurityConfig extends WebSecurityConfigurerAdapter {
 
-	private CustomAuthProvider authenticationProvider;
-	private CustomAuthenticationFilter filter;
+	private UserCredentialsAuthenticationProvider usernamePasswordAuthProvider;
+	private OtpAuthenticationProvider otpAuthenticationProvider;
+	private TwoFactorAuthenticationFilter filter;
 
-	public AppSecurityConfig(@Lazy CustomAuthProvider authenticationProvider,
-			@Lazy CustomAuthenticationFilter filter) {
-		this.authenticationProvider = authenticationProvider;
+	public AppSecurityConfig(@Lazy UserCredentialsAuthenticationProvider usernamePasswordAuthProvider,
+			@Lazy TwoFactorAuthenticationFilter filter, @Lazy OtpAuthenticationProvider otpAuthenticationProvider) {
+		this.usernamePasswordAuthProvider = usernamePasswordAuthProvider;
+		this.otpAuthenticationProvider = otpAuthenticationProvider;
 		this.filter = filter;
 	}
 
@@ -38,7 +41,6 @@ public class AppSecurityConfig extends WebSecurityConfigurerAdapter {
 	protected void configure(HttpSecurity http) throws Exception {
 
 		http.addFilterAt(filter, BasicAuthenticationFilter.class);
-
 		http.httpBasic();
 		http.csrf().disable(); // Disabling to implement CSRF tokens
 
@@ -51,7 +53,8 @@ public class AppSecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Override
 	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-		auth.authenticationProvider(authenticationProvider);
+		auth.authenticationProvider(usernamePasswordAuthProvider)
+			.authenticationProvider(otpAuthenticationProvider);
 	}
 
 	@Override

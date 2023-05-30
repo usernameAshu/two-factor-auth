@@ -3,9 +3,12 @@ package com.mohanty.app.security.filters;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Base64.Decoder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -22,16 +25,25 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
-import com.mohanty.app.security.authentications.CustomUserAuthenticationToken;
+import com.mohanty.app.entity.Otp;
+import com.mohanty.app.repository.OtpRepository;
+import com.mohanty.app.security.authentications.OtpAuthentication;
+import com.mohanty.app.security.authentications.UserCredentialsAuthentication;
 
 import lombok.AllArgsConstructor;
 
 @Component
 @AllArgsConstructor
-public class CustomAuthenticationFilter implements Filter {
+public class TwoFactorAuthenticationFilter implements Filter {
 	
 	private final AuthenticationManager manager;
+	private final OtpRepository otpRepository;
 
+	/**
+	 * Step 1: Username & Password checking using the {@link UserCredentialsAuthentication}
+	 * Step 2: if otp not present , then generate OTP
+	 * Step 3: Username & otp using the {@link OtpAuthentication}
+	 */
 	@Override
 	public void doFilter(ServletRequest request, ServletResponse response,
             FilterChain chain) throws IOException, ServletException {
@@ -39,6 +51,7 @@ public class CustomAuthenticationFilter implements Filter {
 		HttpServletRequest httpRequest = (HttpServletRequest) request;
 		HttpServletResponse httpResponse = (HttpServletResponse)response;
 		
+		//Step 1 : Username & Password authentication 
 		String authHeader = httpRequest.getHeader("Authorization");
 		String authType = httpRequest.getAuthType() ;
 		
@@ -52,20 +65,46 @@ public class CustomAuthenticationFilter implements Filter {
 		List<GrantedAuthority> grantedRoles = new ArrayList<>();
 		grantedRoles.add(authority);
 		
-		Authentication authentication = new CustomUserAuthenticationToken(username, password, grantedRoles);
-		
+		Authentication authentication = new UserCredentialsAuthentication(username, password, grantedRoles);
+
 		Authentication resultAuth = manager.authenticate(authentication);
 		
 		if(resultAuth.isAuthenticated()) {
 			SecurityContextHolder.getContext().setAuthentication(authentication);
+			
+			//Step 2: Generate Otp here 
+			Otp otp = generateOtpForUser(username);
+			httpResponse.setHeader("otp", otp.getOtp());
+			otpRepository.save(otp);
 			chain.doFilter(httpRequest, httpResponse);
+			
 		} else {
 			System.out.println("Authentication failed");
 			throw new BadCredentialsException("Authentication Failed");
 		}
 		
 	}
+	
+	private Otp generateOtpForUser(String username) {
+		Otp otp = null;
+		int secretCode = new Random().nextInt(9999)+1000;
+		Optional<Otp> otpuser = otpRepository.findOtpByUsername(username);
+		if (!otpuser.isPresent()) {
+			otp = new Otp();
+			otp.setUsername(username);
+			otp.setOtp(String.valueOf(secretCode));
+		} else {
+			otp = otpuser.get();
+			otp.setOtp(String.valueOf(secretCode));
+		}
+		return otp;
+	}
 
+	/**
+	 * Decoding the "Basic 1234xyz" from auth header into username & password using base64 {@link Base64.Decoder}
+	 * @param authHeader
+	 * @return
+	 */
 	private Map<String,String> base64Decoder(String authHeader) {
 		byte[] decodeBytes = Base64.getDecoder().decode(authHeader.split(" ")[1]);
 		String decodedString = new String(decodeBytes);

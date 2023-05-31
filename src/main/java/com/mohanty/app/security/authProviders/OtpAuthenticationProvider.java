@@ -9,20 +9,23 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.mohanty.app.entity.Otp;
 import com.mohanty.app.repository.OtpRepository;
 import com.mohanty.app.security.authentications.OtpAuthentication;
 
+import lombok.AllArgsConstructor;
+
 @Component
+@AllArgsConstructor
 public class OtpAuthenticationProvider implements AuthenticationProvider {
 	
 	private final OtpRepository otpRepository;
+	private final PasswordEncoder passwordEncoder;
 	
-	public OtpAuthenticationProvider(OtpRepository otpRepository) {
-		this.otpRepository = otpRepository;
-	}
+	//parameterized constructors from lombok
 
 	@Override
 	public Authentication authenticate(Authentication authentication) throws AuthenticationException {
@@ -32,16 +35,16 @@ public class OtpAuthenticationProvider implements AuthenticationProvider {
 		}
 		
 		String username = authentication.getName();
-		String otp = String.valueOf(authentication.getCredentials());
+		String otpSecret = String.valueOf(authentication.getCredentials());
 		List<GrantedAuthority> grantedAuthorities = new ArrayList<>();
 		GrantedAuthority authority = () -> "USER";
 		grantedAuthorities.add(authority);
 		
-		
-		Optional<Otp> otpUser = otpRepository.findOtpByUsername(username);
-		if(otpUser.isPresent() && otpUser.get().getOtp().equals(otp)) {
-			return new OtpAuthentication(username, otp, grantedAuthorities);
+		Optional<Otp> dbOtpDetails = otpRepository.findOtpByUsername(username);
+		if(dbOtpDetails.isPresent() && passwordEncoder.matches(otpSecret, dbOtpDetails.get().getOtp())) {
+			return new OtpAuthentication(username, dbOtpDetails.get().getOtp(),grantedAuthorities);
 		}
+		
 		
 		throw new BadCredentialsException("Otp is not correct");
 	}

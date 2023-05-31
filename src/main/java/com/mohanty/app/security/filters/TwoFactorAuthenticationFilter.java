@@ -23,6 +23,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.mohanty.app.entity.Otp;
@@ -38,6 +39,7 @@ public class TwoFactorAuthenticationFilter implements Filter {
 	
 	private final AuthenticationManager manager;
 	private final OtpRepository otpRepository;
+	private final PasswordEncoder passwordEncoder;
 
 	/**
 	 * Step 1: Username & Password checking using the {@link UserCredentialsAuthentication}
@@ -77,8 +79,7 @@ public class TwoFactorAuthenticationFilter implements Filter {
 				SecurityContextHolder.getContext().setAuthentication(authentication);
 
 				// Step 2: Generate Otp here
-				Otp otp = generateOtpForUser(username);
-				httpResponse.setHeader("otp", otp.getOtp());
+				Otp otp = generateOtpForUser(username, httpResponse);
 				otpRepository.save(otp);
 				chain.doFilter(httpRequest, httpResponse);
 
@@ -101,17 +102,19 @@ public class TwoFactorAuthenticationFilter implements Filter {
 		
 	}
 	
-	private Otp generateOtpForUser(String username) {
+	private Otp generateOtpForUser(String username, HttpServletResponse httpServletResponse) {
 		Otp otp = null;
-		int secretCode = new Random().nextInt(9999)+1000;
+		String secretCode = String.valueOf(new Random().nextInt(9999)+1000);
+		httpServletResponse.setHeader("otp", secretCode);
 		Optional<Otp> otpuser = otpRepository.findOtpByUsername(username);
+		
 		if (!otpuser.isPresent()) {
 			otp = new Otp();
 			otp.setUsername(username);
-			otp.setOtp(String.valueOf(secretCode));
+			otp.setOtp(passwordEncoder.encode(secretCode));
 		} else {
 			otp = otpuser.get();
-			otp.setOtp(String.valueOf(secretCode));
+			otp.setOtp(passwordEncoder.encode(secretCode));
 		}
 		return otp;
 	}

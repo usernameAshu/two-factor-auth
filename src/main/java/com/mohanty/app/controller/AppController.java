@@ -22,7 +22,7 @@ public class AppController {
 		this.passwordEncoder = passwordEncoder;
 	}
 
-	@GetMapping("/")
+	@GetMapping("/hello")
 	public String hello(Authentication authentication) {
 //		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		return "Hello "+ authentication.getName()+" !";

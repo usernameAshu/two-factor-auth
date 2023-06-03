@@ -18,7 +18,9 @@ import org.springframework.security.web.authentication.www.BasicAuthenticationFi
 
 import com.mohanty.app.repository.UsersRepository;
 import com.mohanty.app.security.authProviders.OtpAuthenticationProvider;
+import com.mohanty.app.security.authProviders.TokenAuthenticationProvider;
 import com.mohanty.app.security.authProviders.UserCredentialsAuthenticationProvider;
+import com.mohanty.app.security.filters.TokenAuthenticationFilter;
 import com.mohanty.app.security.filters.TwoFactorAuthenticationFilter;
 import com.mohanty.app.security.service.CustomUserDetailsService;
 
@@ -28,19 +30,30 @@ public class AppSecurityConfig extends WebSecurityConfigurerAdapter {
 
 	private UserCredentialsAuthenticationProvider usernamePasswordAuthProvider;
 	private OtpAuthenticationProvider otpAuthenticationProvider;
-	private TwoFactorAuthenticationFilter filter;
+	private TokenAuthenticationProvider tokenAuthenticationProvider;
+	private TwoFactorAuthenticationFilter twoFactorFilter;
+	private TokenAuthenticationFilter tokenFilter;
 
-	public AppSecurityConfig(@Lazy UserCredentialsAuthenticationProvider usernamePasswordAuthProvider,
-			@Lazy TwoFactorAuthenticationFilter filter, @Lazy OtpAuthenticationProvider otpAuthenticationProvider) {
+	public AppSecurityConfig(
+			@Lazy TwoFactorAuthenticationFilter filter, 
+			@Lazy TokenAuthenticationFilter tokenFilter,
+			@Lazy UserCredentialsAuthenticationProvider usernamePasswordAuthProvider,
+			@Lazy OtpAuthenticationProvider otpAuthenticationProvider,
+			@Lazy TokenAuthenticationProvider tokenAuthenticationProvider
+			) {
+		
+		this.twoFactorFilter = filter;
+		this.tokenFilter = tokenFilter;
 		this.usernamePasswordAuthProvider = usernamePasswordAuthProvider;
 		this.otpAuthenticationProvider = otpAuthenticationProvider;
-		this.filter = filter;
+		this.tokenAuthenticationProvider = tokenAuthenticationProvider;
 	}
 
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
 
-		http.addFilterAt(filter, BasicAuthenticationFilter.class);
+		http.addFilterAt(twoFactorFilter, BasicAuthenticationFilter.class)
+			.addFilterAfter(tokenFilter, BasicAuthenticationFilter.class);
 		http.httpBasic();
 		http.csrf().disable(); // Disabling to implement CSRF tokens
 
@@ -54,7 +67,8 @@ public class AppSecurityConfig extends WebSecurityConfigurerAdapter {
 	@Override
 	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
 		auth.authenticationProvider(usernamePasswordAuthProvider)
-			.authenticationProvider(otpAuthenticationProvider);
+			.authenticationProvider(otpAuthenticationProvider)
+			.authenticationProvider(tokenAuthenticationProvider);
 	}
 
 	@Override

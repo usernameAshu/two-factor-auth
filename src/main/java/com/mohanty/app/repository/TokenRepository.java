@@ -15,5 +15,5 @@ import com.mohanty.app.entity.Token;
  */
 public interface TokenRepository extends JpaRepository<Token, Integer> {
 
-	Optional<Token> findTokenByUserName(String userName);
+	Optional<Token> findByUserName(String userName);
 }

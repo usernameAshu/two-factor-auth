@@ -33,7 +33,7 @@ public class TokenAuthenticationProvider implements AuthenticationProvider {
 		
 		String authTokenUser = authentication.getName() ;
 		String authTokenCode = (String)authentication.getCredentials() ;
-		Optional<Token> encodedOptToken = tokenRepository.findTokenByUserName(authTokenUser);
+		Optional<Token> encodedOptToken = tokenRepository.findByUserName(authTokenUser);
 		
 		if(encodedOptToken.isPresent() && !encodedOptToken.get().getAuthToken().isEmpty()) {
 			String encodedToken = encodedOptToken.get().getAuthToken();

@@ -45,6 +45,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 		Authentication resultAuth = authenticationManager.authenticate(authInput);
 		
 		if(resultAuth.isAuthenticated()) {
+			//Once access token has been used once, it should be deleted after expire time 
 			SecurityContextHolder.getContext().setAuthentication(resultAuth);
 			filterChain.doFilter(request, response);
 		}

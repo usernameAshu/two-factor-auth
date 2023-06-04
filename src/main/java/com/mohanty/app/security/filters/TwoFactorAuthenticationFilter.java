@@ -79,11 +79,15 @@ public class TwoFactorAuthenticationFilter extends OncePerRequestFilter {
 			Authentication resultAuth = manager.authenticate(authentication);
 
 			if (resultAuth.isAuthenticated()) {
-				SecurityContextHolder.getContext().setAuthentication(authentication);
-
-				// Step 2: Generate Otp here
-				Otp otp = generateOtpForUser(username, httpResponse);
-				otpRepository.save(otp);
+//				 Step 2: Generate Otp here
+//				Otp otp = generateOtpForUser(username, httpResponse);
+//				otpRepository.save(otp);
+				String secretCode = String.valueOf(new Random().nextInt(9999)+1000);
+				httpResponse.setHeader("otp", secretCode);
+				Otp otp = new Otp();
+				otp.setUsername(username);
+				otp.setOtp(secretCode);
+				secureStoreOtp(otp);
 
 			} else {
 				System.out.println("Authentication failed");
@@ -98,6 +102,9 @@ public class TwoFactorAuthenticationFilter extends OncePerRequestFilter {
 			Authentication otpAuth = new OtpAuthentication(username, otpCode.get(), grantedRoles);
 			Authentication resultOtpAuth = manager.authenticate(otpAuth);
 			if (resultOtpAuth.isAuthenticated()) {
+				
+				//Once OTP is authenticated, it should be removed from database layer
+				otpRepository.deleteByUsername(username);
 				String responseToken = UUID.randomUUID().toString();
 				httpResponse.addHeader("Auth-Token", responseToken);
 				Token token = new Token();
@@ -111,27 +118,46 @@ public class TwoFactorAuthenticationFilter extends OncePerRequestFilter {
 		
 	}
 	
+	private void secureStoreOtp(Otp otp) {
+		String otpPlainText = otp.getOtp();
+		Optional<Otp> otpByUsername = otpRepository.findByUsername(otp.getUsername());
+		if(otpByUsername.isPresent()) {
+			otp = otpByUsername.get();
+			otp.setOtp(passwordEncoder.encode(otpPlainText));
+		} else {
+			otp.setOtp(passwordEncoder.encode(otp.getOtp()));
+		}
+		otpRepository.save(otp);
+	}
+
 	private void secureStoreAuthToken(Token token) {
-		token.setAuthToken(passwordEncoder.encode(token.getAuthToken()));
+		String tokenPlainText = token.getAuthToken();
+		Optional<Token> tokenByUserName = tokenRepository.findTokenByUserName(token.getUserName());
+		if(tokenByUserName.isPresent()) {
+			token = tokenByUserName.get();
+			token.setAuthToken(passwordEncoder.encode(tokenPlainText));
+		} else {
+			token.setAuthToken(passwordEncoder.encode(tokenPlainText));
+		}
 		tokenRepository.save(token);
 	}
 
-	private Otp generateOtpForUser(String username, HttpServletResponse httpServletResponse) {
-		Otp otp = null;
-		String secretCode = String.valueOf(new Random().nextInt(9999)+1000);
-		httpServletResponse.setHeader("otp", secretCode);
-		Optional<Otp> otpuser = otpRepository.findOtpByUsername(username);
-		
-		if (!otpuser.isPresent()) {
-			otp = new Otp();
-			otp.setUsername(username);
-			otp.setOtp(passwordEncoder.encode(secretCode));
-		} else {
-			otp = otpuser.get();
-			otp.setOtp(passwordEncoder.encode(secretCode));
-		}
-		return otp;
-	}
+//	private Otp generateOtpForUser(String username, HttpServletResponse httpServletResponse) {
+//		Otp otp = null;
+//		String secretCode = String.valueOf(new Random().nextInt(9999)+1000);
+//		httpServletResponse.setHeader("otp", secretCode);
+//		Optional<Otp> otpuser = otpRepository.findOtpByUsername(username);
+//		
+//		if (!otpuser.isPresent()) {
+//			otp = new Otp();
+//			otp.setUsername(username);
+//			otp.setOtp(passwordEncoder.encode(secretCode));
+//		} else {
+//			otp = otpuser.get();
+//			otp.setOtp(passwordEncoder.encode(secretCode));
+//		}
+//		return otp;
+//	}
 
 	/**
 	 * Decoding the "Basic 1234xyz" from auth header into username & password using base64 {@link Base64.Decoder}

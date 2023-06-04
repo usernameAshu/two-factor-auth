@@ -40,7 +40,7 @@ public class OtpAuthenticationProvider implements AuthenticationProvider {
 		GrantedAuthority authority = () -> "USER";
 		grantedAuthorities.add(authority);
 		
-		Optional<Otp> dbOtpDetails = otpRepository.findOtpByUsername(username);
+		Optional<Otp> dbOtpDetails = otpRepository.findByUsername(username);
 		if(dbOtpDetails.isPresent() && passwordEncoder.matches(otpSecret, dbOtpDetails.get().getOtp())) {
 			return new OtpAuthentication(username, dbOtpDetails.get().getOtp(),grantedAuthorities);
 		}

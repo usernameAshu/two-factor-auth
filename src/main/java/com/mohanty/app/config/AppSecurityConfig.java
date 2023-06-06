@@ -18,11 +18,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.csrf.CsrfFilter;
 
 import com.mohanty.app.repository.UsersRepository;
 import com.mohanty.app.security.authProviders.OtpAuthenticationProvider;
 import com.mohanty.app.security.authProviders.TokenAuthenticationProvider;
 import com.mohanty.app.security.authProviders.UserCredentialsAuthenticationProvider;
+import com.mohanty.app.security.filters.CsrfLoggingFilter;
 import com.mohanty.app.security.filters.TokenAuthenticationFilter;
 import com.mohanty.app.security.filters.TwoFactorAuthenticationFilter;
 import com.mohanty.app.security.service.CustomUserDetailsService;
@@ -35,17 +37,20 @@ public class AppSecurityConfig extends WebSecurityConfigurerAdapter {
 	private TokenAuthenticationProvider tokenAuthenticationProvider;
 	private TwoFactorAuthenticationFilter twoFactorFilter;
 	private TokenAuthenticationFilter tokenFilter;
+	private CsrfLoggingFilter csrfLoggingFilter;
 
 	public AppSecurityConfig(
 			@Lazy TwoFactorAuthenticationFilter filter, 
 			@Lazy TokenAuthenticationFilter tokenFilter,
 			@Lazy UserCredentialsAuthenticationProvider usernamePasswordAuthProvider,
 			@Lazy OtpAuthenticationProvider otpAuthenticationProvider,
-			@Lazy TokenAuthenticationProvider tokenAuthenticationProvider
+			@Lazy TokenAuthenticationProvider tokenAuthenticationProvider,
+			@Lazy CsrfLoggingFilter csrfLoggingFilter
 			) {
 		
 		this.twoFactorFilter = filter;
 		this.tokenFilter = tokenFilter;
+		this.csrfLoggingFilter = csrfLoggingFilter;
 		this.usernamePasswordAuthProvider = usernamePasswordAuthProvider;
 		this.otpAuthenticationProvider = otpAuthenticationProvider;
 		this.tokenAuthenticationProvider = tokenAuthenticationProvider;
@@ -55,9 +60,22 @@ public class AppSecurityConfig extends WebSecurityConfigurerAdapter {
 	protected void configure(HttpSecurity http) throws Exception {
 
 		http.addFilterAt(twoFactorFilter, BasicAuthenticationFilter.class)
-			.addFilterAfter(tokenFilter, BasicAuthenticationFilter.class);
+			.addFilterAfter(tokenFilter, BasicAuthenticationFilter.class)
+			.addFilterAfter(csrfLoggingFilter, CsrfFilter.class);
 		http.httpBasic();
-		http.csrf().disable(); // Disabling to implement CSRF tokens
+		
+		/**
+		 * CSRF : Cross Site Request Forgery 
+		 * When hacker wants to do any mutable operations via an external link
+		 * hacker will send a email, which will trigger any internal POST/PUT call to the app
+		 * So, spring security assigns a csrf token for any Mutable requests, if any call doesn't have that csrf token,
+		 * that request gets rejected 
+		 * Mention the path where csrf has to be disabled 
+		 */
+//		http.csrf().disable(); // Not a good practice to disable CSRF protection 
+		http.csrf( customizer -> {
+			customizer.ignoringAntMatchers("/csrfdisabled/**");
+		});
 
 		/**
 		 * To allow the post call (add user) happen without authentication All other
